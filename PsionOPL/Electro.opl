@@ -1,0 +1,391 @@
+APP Electro
+	TYPE $9000 REM $800 + $100 = $900
+	REM $800 empeche nouveaux depuis systeme
+	REM types 1 … 4 … pr‚c‚der de $100 sur 3a
+	ICON "\PIC\puce.pic"
+ENDA
+
+Proc init:
+	global lien%
+	lien% = 0
+	open "\dat\Electro.dbf",A,Port$,Typ$,PosX$,PosY$,CmdStat$,Clavier$,A1$,A2$,Mem1$,Mem2$
+	gupdate OFF
+	desPlat:
+	FIRST
+	valeur:
+	close
+ENDP
+
+PROC Scapte%:(dest$)
+	local retour$(12)
+	if lien% <> 1
+		Sinit:
+	endif
+	Lprint "(" + dest$ + ")"
+	retour$ = Secoute$:
+	if len(retour$) > 0
+		if asc(right$(retour$,1))<32
+			retour$=left$(retour$,len(retour$)-1)
+		endif
+	endif
+	if isnum%:(retour$)=0
+		retour$="0"
+	endif
+	return val(retour$)
+ENDP
+
+PROC Senvoi:(dest$,instru%)
+	if lien% <> 1
+		Sinit:
+	endif
+	Lprint "(" + dest$ + FIX$(instru%,0,8) +")"
+ENDP
+
+PROC desPlat:
+	local x%,y%
+	
+	defaultwin 1
+	gfont 1 : gtmode 2
+	
+	gat 190,10
+	gxborder 1,0 or $400,100,140
+	
+	do
+		x% = val(A.PosX$)
+		y% = val(A.PosY$)
+		if right$(A.Typ$,7) = "4 fils)"
+			gat x%,y%-5 :gfill 20,20,0
+		elseif right$(A.Typ$,7) = "2 fils)"
+			gat x%,y%-1 :gfill 20,11,0
+		else
+			gat x%,y% :gfill 20,9,0
+		endif
+		gat x%,y%+8
+			if left$(A.Typ$,6) = "Entr‚e" 
+				gprint chr$(26)+A.Port$
+			else
+				gprint " " + A.Port$+ " " + chr$(26)
+			endif
+	next
+	until EOF
+ENDP
+
+Proc Valeur:
+	local x%, y%, offX%, offY%,sign%
+	local k%, temp%, temp$(12)
+	local taille1%,taille2%
+	local val1%,val2%,val3%,prnt1$(11),prnt2$(25)
+	
+	cache 2000,16384 rem $9000,$9000
+	
+	do
+		k%=key
+		
+		x%=val(A.posX$)
+		y%=val(A.posY$)
+		
+		val1%=0
+		prnt1$=""
+		if len(A.mem1$)
+			if isnum%:(A.mem1$)
+				val1%=val(A.mem1$)
+			else
+				val1%=1
+				prnt1$=chr$(asc(A.mem1$)-73) 
+				REM a ou b donne fleches haut / bas
+			endif
+		else
+			if len(A.CmdStat$)>0
+				val1%=Scapte%:(A.CmdStat$)
+			endif
+		endif
+		
+		prnt2$=""
+		taille2%=0
+		if len(A.mem2$)
+			taille2%=100
+			if len(A.CmdStat$) <> 0
+				temp% = Scapte%:(A.CmdStat$)
+				if A.mem2$<> "0" rem division par 0
+					val2% = (temp% / val(A.mem2$))*(taille2%+1)
+				else
+					val2% = 0
+				endif
+				prnt2$=num$(temp%,10) + "/" + A.mem2$
+			else
+				val2%=val(A.mem2$)/2.54
+				prnt2$=num$(val2%,3) + "%" rem (" + A.mem2$ + "/255)"
+			endif
+		endif
+		
+		if right$(A.Typ$,10)="Analogique"
+			taille1%=150
+			prnt1$ = num$(val1%,3) + " (" + num$(val1%/2.55,3) +"%)"
+			val1%=val1%/1.69
+		else
+			taille1%=10
+			val1%=val1%*10
+		endif
+		
+		if x%<240
+			offx%=-15
+			sign%=-1
+		else
+			offx%=25
+			sign%=0
+		endif
+		
+		gat x%+offx%+(taille1%-10)*sign%,y%-1
+		gfill taille1%+2,12,0
+		gat x%+offx%+(taille1%-10)*sign%+1,y%
+		gfill taille1%,10,1
+		ggrey 1
+		gfill taille1%,10,1
+		gat x%+offx%+(taille1%-10)*sign%+1,y%
+		gfill val1%,10,0
+		ggrey 0
+		
+		gfont 2
+		gat x%+offx%+(taille1%-10)*sign%+3,y%+8 :gprint prnt1$
+		
+		rem val2 des moteurs
+		if taille2%
+			gat x%+offx%+30+(taille2%+50)*sign%,y%-1
+			gfill taille2%+2,12,0
+			gat x%+offx%+30+(taille2%+50)*sign%+1,y%
+			gfill taille2%,10,1
+			ggrey 1
+			gfill taille2%,10,1
+			gat x%+offx%+30+(taille2%+50)*sign%+1,y%
+			gfill val2%,10,0
+			ggrey 0
+		
+			gfont 2
+			gat x%+offx%+35+(taille2%/2+25)*sign%+1,y%+8
+			gprint prnt2$
+		
+		endif
+		
+		if k%
+			if findfield(chr$(k%),6,1,3)
+				giprint A.Port$ + " : " + A.Typ$
+				temp$=leDial$:
+				if len(temp$)
+					Lprint "("+temp$+")"
+				endif
+			elseif k% >= 32
+					giprint chr$(k%) + " : introuvable"
+			endif
+		endif
+	
+		next
+		if EOF = -1
+			FIRST
+			rem gupdate
+		endif
+	until k% = 27
+ENDP
+
+Proc leDial$:
+	local choix%,val&,ret$(12),tmp$(10)
+	dinit "envoyer commande"
+	dtext "destinataire", A.Port$
+	if len(A.Mem1$)
+		do
+		choix%=choix%+1
+		until CString$:(A.A1$,choix%+1,0)=A.Mem1$ OR choix% > 10
+	endif
+	dchoice choix%,CString$:(A.A1$,1,0),CString$:(A.A1$,2,1)
+	if len(A.A2$)
+		if len(A.Mem2$)=0
+			A.Mem2$="0"
+		endif
+		val& = val(A.Mem2$)
+		dlong val&,CString$:(A.A2$,1,0),val(CString$:(A.A2$,2,0)),val(CString$:(A.A2$,3,0))
+	endif
+	dbuttons "Annuler",27,"Envoyer",13
+	if dialog
+		tmp$ = CString$:(A.A1$,choix%+1,0)
+		ret$ = A.Port$ + tmp$
+		A.Mem1$ = tmp$
+		if isnum%:(tmp$) = 0 and len(A.A2$)
+			tmp$ = num$(val&,10)
+			ret$=ret$ + tmp$
+			A.Mem2$ =tmp$
+		endif
+	endif
+	update
+	giprint ret$
+	return ret$
+Endp
+
+REM string separ‚ par virgule, num‚ro … retourner
+REM opt 0/1 normal/tout le string droit restant
+Proc CString$:(CStr$,num%,opt%)
+	local cmpt%,leStr$(255)
+	leStr$=CStr$
+	cmpt%=1
+	while cmpt% < num% and len(leStr$) > 0
+		leStr$=right$(leStr$,len(leStr$)-loc(leStr$,","))
+	cmpt%=cmpt%+1
+	endwh
+	if opt%=0
+		leStr$=leStr$ + ","
+		return left$(leStr$,loc(leStr$,",")-1)
+	else
+		return leStr$
+	endif
+ENDP
+
+Proc isNum%:(string$)
+	local i%,laLen%,verif%
+	laLen%=len(string$)
+	i%=1
+	do
+		verif% = asc(mid$(string$,i%,1))
+		if verif% > 57 or verif% < 48
+			verif%=0
+			break 
+		else
+			verif% = 1
+		endif
+	i%=i%+1
+	until i% > laLen%
+return verif%
+endp
+
+PROC Sinit:
+	local ret%, name$(14)
+	local ax%,bx%
+	local k%
+	
+	busy "r‚serve & ouvre"
+	ax%=$0100
+	name$="LINK.*"+chr$(0)
+	bx%=uadd(addr(name$),1)
+	
+	ret%=OS($88,addr(ax%)) REM addr de bx% suit ax%
+	
+	if (ret% and 1)=0
+		REM Liaison distante active
+		bx%=ax%
+		ax%=$0D00
+		ret%=os($88,addr(ax%))
+		
+		if (ret% and 1)
+			dinit "impossible de d‚sactiver Liaison distante"
+			dbuttons "Quitter",-27,"Re-essayer",13
+			if dialog
+			else
+				raise -50
+			endif
+		endif
+	endif
+	
+	trap Lopen("TTY:A")
+	if ERR = -40
+		dinit "Erreur : un autre utilise serie"
+		dbuttons "Quitter",-27,"Re-essayer",13
+			if dialog
+			else
+				raise -40
+			endif
+		Lclose
+	elseif ERR <> 0
+		dinit "Erreur lien serie"
+		dbuttons "Quitter",-27,"Re-essayer",13
+			if dialog
+			else
+				raise -50
+			endif
+		Lclose
+	else
+		rsset:(16,0,8,1,4,&0002411)
+		REM 19200bauds, noParity, 8bits, 1ctrl, NoHandShake, &NULL/EOT(4)/BREAKLINE/NEWLINE
+		busy off
+		lien%=1
+		giprint "port serie ouvert"
+	endif
+	
+	busy "en attente platine"
+	do
+	k%=key
+	until Scapte%:("?")=1 or k% = 27
+	busy off
+	if k% = 27
+		lien%=0
+	else
+		giprint "connect‚"
+	endif
+endp
+
+PROC Secoute$:
+	local temps%, trepond%, dixieme&
+	local srepond%,buf$(12),nbchar%,adrchar%
+	local erreur%
+	
+	buf$=chr$(0)
+	
+	dixieme&=5
+	erreur%=ioopen(temps%,"TIM:",-1)
+	if erreur% :raise erreur% :endif
+	ioc (temps%,1,trepond%,dixieme&)
+	
+	nbchar%=6
+	adrchar%=addr(buf$)
+	ioc (-1,1,srepond%,#(adrchar%+1),nbchar%)
+	REM -1 handle du pour le lien serie ; 1 fonction Lire
+	
+	while trepond%=-46 AND srepond%=-46
+	iowait rem ioyield
+	endwh
+	
+	if trepond%=-46 REM temps still pending
+		ioc (temps%,4,#0,#0)   rem timer P_FCANCEL
+		iowaitstat trepond%
+		ioclose(srepond%)
+	else
+		ioc (-1,4,#0,#0)       rem serie P_FCANCEL
+		iowaitstat srepond%
+	endif
+	
+	ioclose(temps%)
+	
+	pokeb adrchar%,nbchar%
+	
+	return buf$
+	
+ENDP
+
+PROC rsset:(baud%,parity%,data%,stop%,hand%,term&)
+
+REM Baud =		300  600  1200 2400 4800 9600 19200
+REM value =		6    7    8    11   13   15   16
+
+REM Parity =	NONE EVEN ODD
+REM value = 	0    1    2
+
+REM Data bits =	5, 6, 7 or 8
+
+REM Stop bits =	2 or 1
+
+REM Handshaking =	ALL  NONE XON  RTS  XON+RTS DSR  XON+DSR   RTS+DSR
+REM value =		11   4    7    0    3   12   15        8
+
+REM term& 32 bits hex value : 32 1st ASCII (terminate char) &FFFFFF for all
+REM e.g. ctrl Z (bit 26) + New line (bit 10) + Return (bit 13) = &04002400
+REM 00000100000000000010010000000000
+
+	LOCAL frame%,srchar%(6),dummy%,err%
+	frame%=data%-5
+	IF stop%=2 :frame%=frame% OR 16 :ENDIF
+	IF parity% :frame%=frame% OR 32 :ENDIF
+	srchar%(1)=baud% OR (baud%*256)
+	srchar%(2)=frame% OR (parity%*256)
+	srchar%(3)=(hand% AND 255) OR $1100
+	srchar%(4)=$13
+	POKEL ADDR(srchar%(5)),term&
+	err%=IOW(-1,7,srchar%(1),dummy%)
+	IF err% :RAISE err% :ENDIF
+
+ENDP
